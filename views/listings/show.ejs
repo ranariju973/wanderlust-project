@@ -1,17 +1,15 @@
-<% layout("/layouts/boilerplate") %>
+<%- layout("/layouts/boilerplate") %>
 <script>
   const mapToken = "<%= process.env.MAP_TOKEN %>"
   const coordinates = <%- JSON.stringify(listings.geometry.coordinates) %>
 </script>
 <div class="row">
-    <div class="col-8 offset-2">
-    <br>
+    <div class="col-md-8 col-12 mx-auto">
     <h3><%= listings.title %></h3>
-    <br>
     </div>
-    <div class="card col-7 offset-2 show-card listing-card ">
+    <div class="card col-md-7 col-12 mx-auto mb-4 show-card listing-card ">
       <img src="<%= listings.image.url %>" class="card-img-top show-image" alt="...">
-        <div class="card listing-card" style="width: 18rem;">
+        <div class="card listing-card">
             
             <div class="card-body">
               <p class="card-text">
@@ -31,30 +29,22 @@
     </div>
 
     <% if(currUser && currUser._id.equals(listings.owner._id))  { %>
-    <div class="btns">
-      <a class="btn btn-primary col-1 offset-2" href="/listings/<%= listings._id %>/edit">Edit</a>
+    <div class="btns col-md-7 col-12 mx-auto mb-3 d-flex gap-2">
+      <a class="btn btn-primary flex-grow-0" href="/listings/<%= listings._id %>/edit">Edit</a>
       
       <form method="POST" action="/listings/<%= listings._id %>?_method=DELETE">
-          <button class="btn btn-outline-dark offset-4 " >DELETE</button>
+          <button class="btn btn-outline-dark">DELETE</button>
       </form>
     </div>
     <% } %>
 
     <!-- rating and comment -->
 
-
-    
-    <div class="col-8 offset-2">
+    <div class="col-md-8 col-12 mx-auto">
       <hr>
       <% if(currUser) {%>
       <h4>Leave a Review</h4>
       <form action="/listings/<%= listings.id %>/reviews" method="POST" novalidate class="needs-validation">
-
-        <!-- <div class="mb-3 mt-3">
-          <label class="form-label" for="rating">Rating</label>
-          <input class="form-range" type="range" min="" max="5" id="rating" name="review[rating]">
-        </div> -->
-
 
         <div class="mb-3 mt-3">
           <label class="form-label" for="rating">Rating</label>
@@ -86,36 +76,118 @@
       <hr>
       <% } %>
 
+      <% if(listings.reviews.length > 0) { %>
+      <div class="reviews-section">
+        <h4>All Reviews (<%= listings.reviews.length %>)</h4>
+        <% 
+          const showInitially = 4; 
+          const hasMoreReviews = listings.reviews.length > showInitially;
+        %>
 
-      <div class="row">
-
-        <% for(review of listings.reviews) { %>
-          <h4>All Reviews</h4>
-          <div class="card col-5 ms-3 mb-3">
-            <div class="card-body">
-              <h5 class="card-title">@<%= review.author.username %></h5>
-              <p class="starability-result" data-rating="<%= review.rating %>"></p>
-              <p class="card-text"><%= review.comment %></p>
+        <div class="row reviews-container">
+          <% for(let i = 0; i < listings.reviews.length; i++) { 
+            const review = listings.reviews[i];
+            const isHidden = i >= showInitially;
+          %>
+            <div class="col-lg-6 col-12 mb-3 review-item <%= isHidden ? 'hidden-review' : '' %>">
+              <div class="card review-card h-100">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h5 class="card-title mb-0 p-3">@<%= review.author.username %></h5>
+                    <p class="starability-result" data-rating="<%= review.rating %>"></p>
+                  </div>
+                  <p class="card-text review-comment p-3"><%= review.comment %></p>
+                </div>
+                <% if(currUser && currUser._id.equals(review.author._id)) { %>
+                <div class="card-footer bg-transparent border-0 p-3">
+                  <form method="POST" action="/listings/<%= listings._id %>/reviews/<%= review._id %>?_method=DELETE">
+                    <button class="btn btn-sm btn-outline-danger">
+                      <i class="fa-regular fa-trash-can"></i> Delete
+                    </button>
+                  </form>
+                </div>
+                <% } %>
+              </div>
             </div>
+          <% } %>
+        </div>
 
-            <form class="mb-3" method="POST" action="/listings/<%= listings._id %>/reviews/<%= review._id %>?_method=DELETE">
-              <br>
-              <button class="btn btn-outline-dark"><i class="fa-regular fa-trash-can"></i></button>
-            </form>
+        <% if(hasMoreReviews) { %>
+          <div class="text-center my-4">
+            <button id="show-more-reviews" class="btn btn-outline-success">
+              <i class="fa-solid fa-chevron-down me-1"></i> Show More Reviews
+            </button>
           </div>
-          <hr>
         <% } %>
-
-      <div>
+      </div>
+      <% } %>
     </div>
 
-    <div class="col-8  mb-3">
+    <div class="col-md-8 col-12 mx-auto mb-3">
       <h3>Where You'll be</h3>
       <div id="map"></div>
     </div>
 
 </div>
 
-<br><br>
+<style>
+  .hidden-review {
+    display: none;
+  }
+  
+  .review-card {
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+    margin-bottom: 0.5rem;
+  }
+  
+  .review-card:hover {
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+  }
+  
+  .review-comment {
+    color: #555;
+    margin-bottom: 0.5rem;
+  }
+  
+  .reviews-section {
+    margin-bottom: 2rem;
+  }
+  
+  .card-footer {
+    padding-top: 0;
+  }
+
+  .review-card .card-body {
+    padding: 1.25rem;
+  }
+
+  .review-item {
+    padding: 0.5rem;
+  }
+
+  @media (max-width: 768px) {
+    .review-item {
+      padding: 0.75rem;
+    }
+  }
+</style>
+
+<script>
+  // Show more reviews functionality
+  document.addEventListener('DOMContentLoaded', function() {
+    const showMoreBtn = document.getElementById('show-more-reviews');
+    if(showMoreBtn) {
+      showMoreBtn.addEventListener('click', function() {
+        const hiddenReviews = document.querySelectorAll('.hidden-review');
+        hiddenReviews.forEach(review => {
+          review.classList.remove('hidden-review');
+        });
+        showMoreBtn.style.display = 'none';
+      });
+    }
+  });
+</script>
 
 <script src="/js/map.js"></script>

@@ -27,6 +27,12 @@ const validateListing = (req, res, next) => {
 // Index route
 router.get("/", wrapAsync(listingController.index))
 
+// Search suggestions API
+router.get("/suggestions", wrapAsync(listingController.searchSuggestions))
+
+// Search route
+router.get("/search", wrapAsync(listingController.searchListings))
+
 // New route
 router.get("/new", isLoggedIn, listingController.renderNewForm)
 

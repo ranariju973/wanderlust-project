@@ -6,8 +6,87 @@ const geocodingClient = mbxGeocoding({ accessToken: mapToken });
 
 // Index route module
 module.exports.index = async (req, res) => {
-    const allListings = await Listing.find({})
-    res.render("listings/index.ejs", { allListings })
+    let allListings = await Listing.find({})
+    
+    // Handle search query if it exists
+    const { search } = req.query;
+    if (search) {
+        // Create a case-insensitive regex search pattern
+        const searchPattern = new RegExp(search, 'i');
+        
+        // Search in title, location, and country fields
+        allListings = await Listing.find({
+            $or: [
+                { title: searchPattern },
+                { location: searchPattern },
+                { country: searchPattern }
+            ]
+        });
+    }
+    
+    res.render("listings/index.ejs", { allListings, searchQuery: search || "" })
+}
+
+// Search suggestions API
+module.exports.searchSuggestions = async (req, res) => {
+    const { q } = req.query;
+    
+    if (!q || q.length < 2) {
+        return res.json([]);
+    }
+    
+    try {
+        // Create a case-insensitive regex search pattern
+        const searchPattern = new RegExp(q, 'i');
+        
+        // Find unique titles, locations, and countries that match the query
+        const titleResults = await Listing.find({ title: searchPattern }, 'title').limit(5);
+        const locationResults = await Listing.find({ location: searchPattern }, 'location').limit(5);
+        const countryResults = await Listing.find({ country: searchPattern }, 'country').limit(5);
+        
+        // Extract unique values
+        const titles = [...new Set(titleResults.map(item => item.title))];
+        const locations = [...new Set(locationResults.map(item => item.location))];
+        const countries = [...new Set(countryResults.map(item => item.country))];
+        
+        // Combine results and limit to 10 suggestions
+        const suggestions = [
+            ...titles.map(title => ({ text: title, type: 'title' })),
+            ...locations.map(location => ({ text: location, type: 'location' })),
+            ...countries.map(country => ({ text: country, type: 'country' }))
+        ].slice(0, 10);
+        
+        res.json(suggestions);
+    } catch (err) {
+        console.error("Error fetching search suggestions:", err);
+        res.status(500).json({ error: "Failed to fetch suggestions" });
+    }
+}
+
+// Search route module
+module.exports.searchListings = async (req, res) => {
+    const { search } = req.query;
+    
+    if (!search) {
+        return res.redirect("/listings");
+    }
+    
+    // Create a case-insensitive regex search pattern
+    const searchPattern = new RegExp(search, 'i');
+    
+    // Search in title, location, and country fields
+    const searchResults = await Listing.find({
+        $or: [
+            { title: searchPattern },
+            { location: searchPattern },
+            { country: searchPattern }
+        ]
+    });
+    
+    res.render("listings/index.ejs", { 
+        allListings: searchResults, 
+        searchQuery: search
+    });
 }
 
 // New route module

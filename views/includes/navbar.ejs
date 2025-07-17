@@ -13,9 +13,110 @@
   .search-input{
     border-radius: 25px;
   }
+
+  /* Fixed search bar for mobile */
+  .search-form-fixed {
+    position: fixed;
+    top: 0.75rem;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 50%;
+    z-index: 1050;
+    display: flex;
+  }
+  
+  .search-form-fixed .search-input {
+    height: 30px;
+    font-size: 0.75rem;
+  }
+  
+  .search-form-fixed .btn-search {
+    height: 30px;
+    padding: 0 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  /* Autocomplete suggestions */
+  .autocomplete-container {
+    position: relative;
+    flex-grow: 1;
+  }
+
+  .suggestions-container {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    z-index: 1060;
+    max-height: 300px;
+    overflow-y: auto;
+    display: none;
+  }
+
+  .suggestion-item {
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    border-bottom: 1px solid #f1f1f1;
+    display: flex;
+    align-items: center;
+  }
+
+  .suggestion-item:last-child {
+    border-bottom: none;
+  }
+
+  .suggestion-item:hover {
+    background-color: #f8f9fa;
+  }
+
+  .suggestion-icon {
+    margin-right: 0.5rem;
+    color: #6c757d;
+    width: 16px;
+    text-align: center;
+  }
+
+  .suggestion-text {
+    flex-grow: 1;
+  }
+
+  .suggestion-type {
+    font-size: 0.75rem;
+    color: #6c757d;
+    margin-left: 0.5rem;
+  }
+
+  @media (max-width: 768px) {
+    .navbar-brand {
+      margin-right: 0;
+    }
+    
+    .navbar-toggler {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.875rem;
+    }
+    
+    /* Hide search when menu is expanded */
+    .navbar-collapse.show ~ .search-form-fixed,
+    .navbar-collapse.collapsing ~ .search-form-fixed {
+      display: none !important;
+    }
+
+    .suggestions-container {
+      max-height: 200px;
+    }
+
+    .suggestion-item {
+      padding: 0.35rem 0.75rem;
+      font-size: 0.875rem;
+    }
+  }
 </style>
-<nav class="navbar navbar-expand-md bg-body-light border-bottom sticky-top">
-    <div class="container-fluid">
+<nav class="navbar navbar-expand-md bg-body-light border-bottom sticky-top p-3">
+    <div class="container-fluid ">
       <a class="navbar-brand" href="/"><i class="fa-solid fa-compass"></i></a>
 
       <button class="navbar-toggler" 
@@ -26,17 +127,29 @@
         <span class="navbar-toggler-icon"></span>
 
       </button>
+      
+      <!-- Fixed search form for mobile -->
+      <form class="d-flex d-md-none search-form-fixed p-2" role="search" action="/listings" method="GET" id="mobileSearchForm">
+        <div class="autocomplete-container">
+          <input class="form-control me-1 search-input" type="search" placeholder="Search by location, title..." name="search" id="mobileSearchInput" value="<%= typeof searchQuery !== 'undefined' ? searchQuery : '' %>" autocomplete="off"/>
+          <div class="suggestions-container" id="mobileSuggestions"></div>
+        </div>
+        <button class="btn btn-search ms-3" type="submit"><i class="fa-solid fa-magnifying-glass"></i></button>
+      </form>
 
       <div class="collapse navbar-collapse" id="navbarNavAltMarkup">
-
         <div class="navbar-nav">
           <a class="nav-link" href="/listings">Explore</a>
         </div>
 
+        <!-- Desktop search form -->
         <div class="navbar-nav ms-auto">
-          <form class="d-flex" role="search">
-            <input class="form-control me-2 search-input" type="search" placeholder="Search" aria-label="Search"/>
-            <button class="btn btn-search" type="submit"><i class="fa-solid fa-magnifying-glass"></i></button>
+          <form class="d-none d-md-flex" role="search" action="/listings" method="GET" id="desktopSearchForm">
+            <div class="autocomplete-container">
+              <input class="form-control me-2 search-input" type="search" placeholder="Search by location, title, country..." name="search" id="desktopSearchInput" value="<%= typeof searchQuery !== 'undefined' ? searchQuery : '' %>" autocomplete="off"/>
+              <div class="suggestions-container" id="desktopSuggestions"></div>
+            </div>
+            <button class="btn btn-search ms-3" type="submit"><i class="fa-solid fa-magnifying-glass"></i></button>
           </form>
         </div>
 
@@ -49,8 +162,113 @@
               <span class="navbar-text me-3"> <b>Hello, <%= currUser.username %>!</b></span>
               <a class="nav-link" href="/logout">Logout</a>
           <% } %>
-      </div>
-
+        </div>
       </div>
     </div>
 </nav>
+
+<script>
+  // Handle search visibility when menu expands/collapses
+  document.addEventListener('DOMContentLoaded', function() {
+    const navbarCollapse = document.getElementById('navbarNavAltMarkup');
+    const searchFormFixed = document.querySelector('.search-form-fixed');
+    
+    // Listen for Bootstrap collapse events
+    navbarCollapse.addEventListener('show.bs.collapse', function() {
+      if (searchFormFixed) searchFormFixed.style.display = 'none';
+    });
+    
+    navbarCollapse.addEventListener('hidden.bs.collapse', function() {
+      if (searchFormFixed) searchFormFixed.style.display = 'flex';
+    });
+
+    // Autocomplete functionality
+    function setupAutocomplete(inputId, suggestionsId, formId) {
+      const searchInput = document.getElementById(inputId);
+      const suggestionsContainer = document.getElementById(suggestionsId);
+      const searchForm = document.getElementById(formId);
+      
+      if (!searchInput || !suggestionsContainer) return;
+      
+      let debounceTimer;
+      
+      searchInput.addEventListener('input', function() {
+        clearTimeout(debounceTimer);
+        
+        const query = this.value.trim();
+        
+        if (query.length < 2) {
+          suggestionsContainer.style.display = 'none';
+          return;
+        }
+        
+        debounceTimer = setTimeout(() => {
+          fetch(`/listings/suggestions?q=${encodeURIComponent(query)}`)
+            .then(response => response.json())
+            .then(suggestions => {
+              if (suggestions.length === 0) {
+                suggestionsContainer.style.display = 'none';
+                return;
+              }
+              
+              // Clear previous suggestions
+              suggestionsContainer.innerHTML = '';
+              
+              // Add new suggestions
+              suggestions.forEach(suggestion => {
+                const item = document.createElement('div');
+                item.className = 'suggestion-item';
+                
+                // Icon based on type
+                let icon = '';
+                if (suggestion.type === 'title') {
+                  icon = '<i class="fa-solid fa-tag suggestion-icon"></i>';
+                } else if (suggestion.type === 'location') {
+                  icon = '<i class="fa-solid fa-location-dot suggestion-icon"></i>';
+                } else if (suggestion.type === 'country') {
+                  icon = '<i class="fa-solid fa-globe suggestion-icon"></i>';
+                }
+                
+                item.innerHTML = `
+                  ${icon}
+                  <span class="suggestion-text">${suggestion.text}</span>
+                  <span class="suggestion-type">${suggestion.type}</span>
+                `;
+                
+                item.addEventListener('click', function() {
+                  searchInput.value = suggestion.text;
+                  suggestionsContainer.style.display = 'none';
+                  searchForm.submit();
+                });
+                
+                suggestionsContainer.appendChild(item);
+              });
+              
+              suggestionsContainer.style.display = 'block';
+            })
+            .catch(error => {
+              console.error('Error fetching suggestions:', error);
+            });
+        }, 300); // Debounce delay
+      });
+      
+      // Close suggestions when clicking outside
+      document.addEventListener('click', function(event) {
+        if (!searchInput.contains(event.target) && !suggestionsContainer.contains(event.target)) {
+          suggestionsContainer.style.display = 'none';
+        }
+      });
+      
+      // Close suggestions when pressing Escape
+      searchInput.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') {
+          suggestionsContainer.style.display = 'none';
+        }
+      });
+    }
+    
+    // Setup autocomplete for both mobile and desktop search
+    setupAutocomplete('mobileSearchInput', 'mobileSuggestions', 'mobileSearchForm');
+    setupAutocomplete('desktopSearchInput', 'desktopSuggestions', 'desktopSearchForm');
+  });
+</script>
